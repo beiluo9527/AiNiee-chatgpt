@@ -1,0 +1,65 @@
+name: AiNiee-chatgpt Action monitors the main branch commit and automatically packs it into an exe file to Beta release.
+on:
+  workflow_dispatch: # Allows you to run this workflow manually from the Actions tab
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.12
+
+      - name: Install Requirements
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --upgrade setuptools
+          python -m pip install -r requirements.txt
+          python -m pip cache purge
+
+      - name: Build EXE
+        run: python .\Tools\pyinstall.py
+
+      - name: Pack Resource
+        run: |
+          Copy-Item -Path "Resource" -Destination "dist\Resource" -Recurse -Force
+          Copy-Item -Path "StevExtraction" -Destination "dist\StevExtraction" -Recurse -Force
+          Copy-Item -Path "Plugin_Scripts" -Destination "dist\Plugin_Scripts" -Recurse -Force
+          Compress-Archive -Path "dist" -DestinationPath "AiNiee-Beta.zip"
+
+      - name: Delete release
+        uses: dev-drprasad/delete-tag-and-release@v0.2.1
+        with:
+          tag_name: Beta
+          delete_release: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.AINIEE }}
+
+      - name: Create release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.AINIEE }}
+        with:
+          tag_name: Beta
+          release_name: AiNiee-Beta 开发测试版本，由最新源码自动打包
+          draft: false
+          prerelease: true
+
+      - name: Upload file
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.AINIEE }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./AiNiee-Beta.zip
+          asset_name: AiNiee-Beta.zip
+          asset_content_type: application/octet-stream
